@@ -226,7 +226,7 @@ export class Ref {
     get name(): string {
         const path = Array.from(this.path);
 
-        for (;;) {
+        for (; ;) {
             const e = path.pop();
             if (e === undefined || e.kind === PathElementKind.Root) {
                 let name = this.addressURI !== undefined ? this.addressURI.filename() : "";
@@ -395,7 +395,7 @@ class Canonizer {
     private readonly _map = new EqualityMap<Ref, Location>();
     private readonly _schemaAddressesAdded = new Set<string>();
 
-    constructor(private readonly _ctx: RunContext) {}
+    constructor(private readonly _ctx: RunContext) { }
 
     private addIDs(schema: any, loc: Location) {
         if (schema === null) return;
@@ -532,7 +532,7 @@ class Resolver {
         private readonly _ctx: RunContext,
         private readonly _store: JSONSchemaStore,
         private readonly _canonizer: Canonizer
-    ) {}
+    ) { }
 
     private async tryResolveVirtualRef(
         fetchBase: Location,
@@ -544,7 +544,7 @@ class Resolver {
         // we don't know its $id mapping yet, which means we don't know where we
         // will end up.  What we do if we encounter a new schema is add all its
         // IDs first, and then try to canonize again.
-        for (;;) {
+        for (; ;) {
             const loc = this._canonizer.canonize(fetchBase, virtualRef);
             const canonical = loc.canonicalRef;
             assert(canonical.hasAddress, "Canonical ref can't be resolved without an address");
@@ -634,10 +634,11 @@ async function addTypesInSchema(
         attributes: TypeAttributes,
         properties: StringMap,
         requiredArray: string[],
-        additionalProperties: any
+        additionalProperties: any,
+        sortKey: (k: string) => number | string = (k: string) => k.toLowerCase()
     ): Promise<TypeRef> {
         const required = new Set(requiredArray);
-        const propertiesMap = mapSortBy(mapFromObject(properties), (_, k) => k.toLowerCase());
+        const propertiesMap = mapSortBy(mapFromObject(properties), (_, k) => sortKey(k));
         const props = await mapMapSync(propertiesMap, async (propSchema, propName) => {
             const propLoc = loc.push("properties", propName);
             const t = await toType(
@@ -846,8 +847,15 @@ async function addTypesInSchema(
                 inferredAttributes,
                 combineProducedAttributes(({ forObject }) => forObject)
             );
+            const order = schema.propertyOrder ? schema.propertyOrder : [];
+            const orderKey = (propertyName: string) => {
+                // use the index of the order array
+                const index = order.indexOf(propertyName);
+                // if no index then use the property name
+                return index !== -1 ? index : propertyName.toLowerCase();
+            };
 
-            return await makeObject(loc, objectAttributes, properties, required, additionalProperties);
+            return await makeObject(loc, objectAttributes, properties, required, additionalProperties, orderKey);
         }
 
         async function makeTypesFromCases(cases: any, kind: string): Promise<TypeRef[]> {
